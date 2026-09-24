@@ -32,6 +32,8 @@ function settings_defaults(){
     'suyan_api' => 'https://u.suyanw.cn/connect.php',
     'suyan_appid' => '',
     'suyan_appkey' => '',
+    // v1.4.2 聚合登录单通道开关：留空的通道前台不再展示/不可登录（后台仍可看到全部通道）
+    'suyan_channels' => ['wx','qq','douyin','microsoft'],
     'code_expire' => 300, // 邮箱验证码有效期（秒）
     'cookie_days' => 14,
     'debug_mode' => true, // 调试模式：仅管理员可登录后台，开启后显示详细错误便于排查（部署排错期间为 true，修复后请改回 false）
@@ -48,6 +50,7 @@ function settings_defaults(){
     'cdn_api' => 'https://img.scdn.io/api/v1.php', // 上传端点
     'cdn_domain' => 'img.scdn.io', // 外链 CDN 域名，多个用英文逗号分隔（留空则由图床自动选择）
     'upload_max_mb' => 4,   // 单图大小上限（MB），同时受主机 upload_max_filesize 限制
+    'upload_video_mb' => 10, // v1.4.2 单个视频大小上限（MB）；图床会把 ≤10 秒视频转为 GIF/动态 WebP
     'notify_poll_secs' => 10, // 铃铛轮询间隔（秒）
     'mail_digest_mins' => 30, // 邮件聚合窗口（分钟），期间多条通知合并为一封
     'footer_about' => '',   // 页脚「关于」内容，允许 a/br/strong 标签
@@ -89,6 +92,9 @@ define('SUYAN_ENABLED', (bool)$__CFG['suyan_enabled']);
 define('SUYAN_API', $__CFG['suyan_api']);
 define('SUYAN_APPID', $__CFG['suyan_appid']);
 define('SUYAN_APPKEY', $__CFG['suyan_appkey']);
+// v1.4.2 已启用的聚合登录通道（前台过滤用；admin/users.php 反查仍用全量 suyan_types()）
+define('SUYAN_CHANNELS', (is_array($__CFG['suyan_channels']) && $__CFG['suyan_channels'])
+  ? array_values(array_map('strval',$__CFG['suyan_channels'])) : ['wx','qq','douyin','microsoft']);
 define('CODE_EXPIRE', (int)$__CFG['code_expire']);
 define('COOKIE_DAYS', (int)$__CFG['cookie_days']);
 define('DEBUG_MODE', (bool)$__CFG['debug_mode']);
@@ -104,6 +110,7 @@ define('MAIL_NOTIFY_PUSH', (bool)$__CFG['mail_notify_push']);
 define('CDN_API', (string)$__CFG['cdn_api']);
 define('CDN_DOMAIN', (string)$__CFG['cdn_domain']);
 define('UPLOAD_MAX_MB', max(1, (int)$__CFG['upload_max_mb']));
+define('UPLOAD_VIDEO_MB', max(1, (int)$__CFG['upload_video_mb']));
 define('NOTIFY_POLL_SECS', max(5, (int)$__CFG['notify_poll_secs']));
 define('MAIL_DIGEST_MINS', max(1, (int)$__CFG['mail_digest_mins']));
 define('FOOTER_ABOUT', (string)$__CFG['footer_about']);

@@ -28,10 +28,10 @@ $page_title='登录'; include 'header.php';
   <?=geetest_widget()?>
   <button class="btn block"><?=ico('user',15)?>登录</button>
   <div class="center"><a href="forgot.php">忘记密码</a> · <a href="register.php">邮箱注册</a></div>
-  <?php if(SUYAN_ENABLED): ?>
+  <?php $__soc=suyan_types_enabled(); if(SUYAN_ENABLED && $__soc): ?>
   <div class="divider">其他方式</div>
   <div class="oauth-row">
-    <?php foreach(suyan_types() as $t=>$p): ?>
+    <?php foreach($__soc as $t=>$p): ?>
     <a class="btn ghost" href="oauth.php?type=<?=$t?>"><span style="color:<?=$p['color']?>;display:inline-flex"><?=ico($p['icon'],16)?></span><?=$p['name']?>登录</a>
     <?php endforeach; ?>
   </div>

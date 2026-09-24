@@ -42,6 +42,7 @@ if(isset($_GET['debug'])){
 try{
   if(!SUYAN_ENABLED) throw new Exception('第三方登录未启用，请联系管理员');
   if(!isset($TYPES[$type])) throw new Exception('不支持的登录方式');
+  if(!suyan_channel_on($type)) throw new Exception('该登录方式已被管理员关闭，请选择其他方式');
   $code=trim($_GET['code']??'');
   if($code===''){
     // Step1：获取授权跳转地址（act=login 返回 JSON，url 为授权页）

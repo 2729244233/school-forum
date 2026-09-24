@@ -1,25 +1,29 @@
 <?php
-// v1.4 板块详情页：仅展示该板块全部帖子（无热榜/无顶部标语），支持排序（时间/热度）与时间段筛选 + 分页
+// v1.4.2 板块详情页：展示板块全部帖子（无热榜/无顶部标语），支持排序（时间/热度）与时间段筛选 + 分页
+// v1.4.2：b 为空表示「全部帖子」总览（跨板块汇总，同样分页）；非空则须命中板块白名单
 require_once __DIR__.'/common.php';
 $pdo=db();
 $me=current_user();
 $boards=boards_all();
 $board=trim($_GET['b']??'');
-if($board==='' || !in_array($board,$boards,true)){ header('Location: index.php'); exit; } // 板块白名单校验
+if($board!=='' && !in_array($board,$boards,true)){ header('Location: index.php'); exit; } // 板块白名单校验
+$isAll=($board==='');
+$viewTitle=$isAll?'全部帖子':$board;
 // 排序：time=最新发布 / hot=热度（点赞*3 + 回复*2 + 浏览）
 $sort=($_GET['sort']??'')==='hot'?'hot':'time';
 // 时间段：all=全部 / 1=今天 / 7=近7天 / 30=近30天（posts.created_at 为 DATETIME，字符串比较双驱动通用）
 $range=$_GET['range']??'all';
 if(!in_array($range,['all','1','7','30'],true)) $range='all';
-$where=" WHERE p.board=? "; $args=[$board];
+$where=' WHERE 1=1 '; $args=[];
+if(!$isAll){ $where.=" AND p.board=? "; $args[]=$board; }
 if($range!=='all'){
   $where.=" AND p.created_at>=? ";
   $args[]=date('Y-m-d H:i:s',time()-(int)$range*86400);
 }
 $order=$sort==='hot'?" (lc*3+rc*2+p.views) DESC, p.id DESC":" p.id DESC";
-// 分页
+// 分页：每页 10 条，避免单页帖子过多
 $total=$pdo->prepare("SELECT COUNT(*) FROM posts p $where"); $total->execute($args); $total=(int)$total->fetchColumn();
-$page=max(1,(int)($_GET['page']??1)); $per=15; $pages=max(1,(int)ceil($total/$per)); $page=min($page,$pages);
+$page=max(1,(int)($_GET['page']??1)); $per=10; $pages=max(1,(int)ceil($total/$per)); $page=min($page,$pages);
 $off=($page-1)*$per;
 $sql="SELECT p.*,u.username,u.avatar,u.is_admin,u.is_official,u.is_operator,(SELECT COUNT(*) FROM replies r WHERE r.pid=p.id) rc,(SELECT COUNT(*) FROM likes l WHERE l.target_type='post' AND l.target_id=p.id) lc FROM posts p LEFT JOIN users u ON u.id=p.uid $where ORDER BY $order LIMIT $per OFFSET $off";
 $s=$pdo->prepare($sql); $s->execute($args); $posts=$s->fetchAll(PDO::FETCH_ASSOC);
@@ -30,13 +34,14 @@ if($me && $posts){
   $ls=$pdo->query("SELECT target_id FROM likes WHERE target_type='post' AND uid=".(int)$me['id']." AND target_id IN ($ids)")->fetchAll(PDO::FETCH_COLUMN);
   $likedSet=array_flip(array_map('intval',$ls));
 }
-// 排序/时间段切换链接（互传对方当前值）
-$mkLink=function($s2,$r2,$p2=1) use ($board){ return 'board.php?b='.urlencode($board).'&sort='.$s2.'&range='.$r2.($p2>1?'&page='.$p2:''); };
-$curBoard=$board;
-$page_title=$board; include __DIR__.'/header.php';
+// 排序/时间段切换链接（互传对方当前值；「全部帖子」不带 b 参数）
+$mkLink=function($s2,$r2,$p2=1) use ($board){ return 'board.php?'.($board!==''?'b='.urlencode($board).'&':'').'sort='.$s2.'&range='.$r2.($p2>1?'&page='.$p2:''); };
+$curBoard=$viewTitle;
+$bodyClass='board-view'; // v1.4.2：板块视图内卡片去圆角
+$page_title=$viewTitle; include __DIR__.'/header.php';
 ?>
 <div class="board-bar">
-  <h1><?=ico('grid',20)?><?=e($board)?><span class="bb-count"><?=$total?> 帖</span></h1>
+  <h1><?=ico('grid',20)?><?=e($viewTitle)?><span class="bb-count"><?=$total?> 帖</span></h1>
   <div class="board-tools">
     <span class="seg-label">排序</span>
     <div class="seg">
@@ -83,7 +88,7 @@ $page_title=$board; include __DIR__.'/header.php';
   </div>
 </article>
 <?php endforeach; ?>
-<?php if(!$posts): ?><div class="card"><div class="empty"><?=ico('file',34)?><br>该板块暂无帖子<?=($range!=='all')?'，试试切换到更长的时间段':'';?>。</div></div><?php endif; ?>
+<?php if(!$posts): ?><div class="card"><div class="empty"><?=ico('file',34)?><br><?=$isAll?'暂无帖子':'该板块暂无帖子'?><?=($range!=='all')?'，试试切换到更长的时间段':'';?>。</div></div><?php endif; ?>
 
 <?php if($pages>1): ?>
 <div class="pg">

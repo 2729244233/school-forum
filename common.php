@@ -434,6 +434,16 @@ function social_find_user($type,$openid){
   $s->execute([$type,$openid]);
   return $s->fetch(PDO::FETCH_ASSOC) ?: null;
 }
+// v1.4.2 聚合登录单通道开关：后台可逐个启用/关闭（未列入 SUYAN_CHANNELS 即视为关闭）
+function suyan_channel_on($type){
+  return in_array((string)$type, SUYAN_CHANNELS, true);
+}
+// v1.4.2 仅返回「已启用」的通道（前台登录/绑定入口用；后台与已绑定反查仍用 suyan_types() 全量）
+function suyan_types_enabled(){
+  $on=[];
+  foreach(suyan_types() as $k=>$v){ if(suyan_channel_on($k)) $on[$k]=$v; }
+  return $on;
+}
 
 /* ==================== v1.3.0 工具函数 ==================== */
 
@@ -495,19 +505,30 @@ function first_image_of($content){
 // v1.4 正文渲染：先转义防 XSS，再把图片外链转成 <img>，其余保留换行
 // 用于帖子详情 / 回复正文（上传图床后正文里存的是图片 URL，需渲染成图片而非一串链接）
 // 注：不用 preg_split(...,PREG_SPLIT_DELIM_CAPTURE)，改用偏移量逐段扫描，行为跨 PHP 版本一致
+// v1.4.2：同一次扫描中把普通网址（完整链接 / www. / 常见后缀裸域名）转成可点击超链接
 function content_html($text){
   $text=(string)$text;
   if($text==='') return '';
-  $re='#https?://[^\s<>"\']+\.(?:jpe?g|png|gif|webp|bmp|tiff)(?:\?[^\s<>"\']*)?#i';
-  $out=''; $offset=0;
+  // 网址可用字符集（排除空白与引号，避免溢出到 HTML 属性）；# 需转义，因其同时是模式定界符
+  $U='[A-Za-z0-9\-._~%!$&()*+,;=:@/?\#\[\]|]';
+  // 1) 带协议或 www. 的完整链接；2) 常见域名后缀的裸域名（自动补 https://）
+  $re='#(?<![\w@/.\-])(?:(?:https?://|www\.)'.$U.'+|(?:[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?\.)+(?:com|cn|net|org|edu|gov|mil|io|me|tv|cc|top|xyz|info|biz|pro|site|online|tech|store|shop|club|vip|art|app|dev|ltd|fun|live|wiki|news|blog)(?:/'.$U.'*)?)#i';
+  $imgRe='#\.(?:jpe?g|png|gif|webp|bmp|tiff|avif)(?:\?.*)?$#i';
+  $out=''; $offset=0; $len=strlen($text);
   while(preg_match($re,$text,$m,PREG_OFFSET_CAPTURE,$offset)){
-    $pos=(int)$m[0][1]; $url=(string)$m[0][0];
+    $pos=(int)$m[0][1]; $raw=(string)$m[0][0];
+    $url=rtrim($raw,".,;:!?)]}。，、；：！？）》】」』…·"); // 剥离句末中英文标点
+    if($url===''){ $offset=$pos+strlen($raw); continue; }
     if($pos>$offset) $out.=nl2br(e(substr($text,$offset,$pos-$offset)));
-    $u=e($url);
-    $out.='<img class="post-img" src="'.$u.'" alt="图片" loading="lazy">';
+    $href=preg_match('#^https?://#i',$url)?$url:'https://'.$url;
+    if(preg_match($imgRe,$url)){
+      $out.='<img class="post-img" src="'.e($href).'" alt="图片" loading="lazy">';
+    }else{
+      $out.='<a class="auto-link" href="'.e($href).'" target="_blank" rel="noopener nofollow">'.e($url).'</a>';
+    }
     $offset=$pos+strlen($url);
   }
-  if($offset<strlen($text)) $out.=nl2br(e(substr($text,$offset)));
+  if($offset<$len) $out.=nl2br(e(substr($text,$offset)));
   return $out;
 }
 // v1.4 列表摘要纯文本：去掉图片外链并压缩空白，避免卡片里显示一长串链接

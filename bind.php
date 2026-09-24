@@ -7,7 +7,7 @@
 require_once __DIR__.'/common.php';
 $pend=$_SESSION['pending_social']??null;
 $TYPES=suyan_types();
-if(!$pend || empty($pend['openid']) || empty($TYPES[$pend['type']??''])){ header('Location: login.php'); exit; }
+if(!$pend || empty($pend['openid']) || empty($TYPES[$pend['type']??'']) || !suyan_channel_on($pend['type'])){ header('Location: login.php'); exit; }
 if(current_user()){ unset($_SESSION['pending_social']); header('Location: index.php'); exit; } // 已登录无需绑定
 $P=$TYPES[$pend['type']];
 $msg='';$ok='';

@@ -3,7 +3,7 @@ require_once __DIR__.'/common.php';
 $pdo=db();
 $me=current_user();
 $boards=boards_all(); // v1.4：板块入口（导航下拉 + 底部引导卡）
-// v1.4：主页只展示最新 6 条（全部帖子按板块浏览：导航「版块」下拉 → board.php）
+// v1.4.2：主页「最新动态」仅展示最新 6 帖；全部帖子请到「版块 → 全部帖子」（board.php）分页浏览
 $posts=$pdo->query("SELECT p.*,u.username,u.avatar,u.is_admin,u.is_official,u.is_operator,(SELECT COUNT(*) FROM replies r WHERE r.pid=p.id) rc,(SELECT COUNT(*) FROM likes l WHERE l.target_type='post' AND l.target_id=p.id) lc FROM posts p LEFT JOIN users u ON u.id=p.uid ORDER BY p.id DESC LIMIT 6")->fetchAll(PDO::FETCH_ASSOC);
 $totalPosts=(int)$pdo->query("SELECT COUNT(*) FROM posts")->fetchColumn();
 // 当前用户对这批帖子的点赞状态（用于卡片点赞按钮高亮）
@@ -13,9 +13,18 @@ if($me && $posts){
   $ls=$pdo->query("SELECT target_id FROM likes WHERE target_type='post' AND uid=".(int)$me['id']." AND target_id IN ($ids)")->fetchAll(PDO::FETCH_COLUMN);
   $likedSet=array_flip(array_map('intval',$ls));
 }
-// v1.3.0 双热榜：帖子浏览 TOP10 + 作者发帖数 TOP10
+// v1.3.0 双热榜：帖子浏览 TOP10 + 作者榜 TOP10
 $hot=$pdo->query("SELECT id,board,title,views FROM posts ORDER BY views DESC, id DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
-$hotUsers=$pdo->query("SELECT u.id,u.username,u.avatar,u.is_admin,u.is_official,u.is_operator,COUNT(*) pc FROM posts p JOIN users u ON u.id=p.uid GROUP BY u.id,u.username,u.avatar,u.is_admin,u.is_official,u.is_operator ORDER BY pc DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+// v1.4.2 作者榜支持自选排榜方式：posts=发帖数 / likes=获赞数 / comments=被评论数
+$usort=$_GET['usort']??'posts';
+if(!in_array($usort,['posts','likes','comments'],true)) $usort='posts';
+$metric=$usort==='likes'?'lc':($usort==='comments'?'cc':'pc');
+$hotUsers=$pdo->query("SELECT u.id,u.username,u.avatar,u.is_admin,u.is_official,u.is_operator,
+ (SELECT COUNT(*) FROM posts p WHERE p.uid=u.id) pc,
+ (SELECT COUNT(*) FROM likes l JOIN posts p2 ON p2.id=l.target_id WHERE l.target_type='post' AND p2.uid=u.id) lc,
+ (SELECT COUNT(*) FROM replies r JOIN posts p3 ON p3.id=r.pid WHERE p3.uid=u.id) cc
+ FROM users u WHERE EXISTS(SELECT 1 FROM posts p0 WHERE p0.uid=u.id)
+ ORDER BY $metric DESC, u.id ASC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
 $page_title='主页'; include __DIR__.'/header.php';
 ?>
 <!-- v1.3.0 PC 立绘：≥1200px 显示，图片缺失时无痕隐藏 -->
@@ -33,7 +42,7 @@ $page_title='主页'; include __DIR__.'/header.php';
 </div>
 
 <div class="card">
-  <div class="card-h"><?=ico('file',16)?>最新动态<span class="r">共 <?=$totalPosts?> 帖 · 从上方「版块」菜单浏览全部</span></div>
+  <div class="card-h"><?=ico('file',16)?>最新动态<span class="r">仅展示最新 6 帖 · <a href="board.php">查看全部帖子（共 <?=$totalPosts?> 帖）→</a></span></div>
   <?php foreach($posts as $p):
     $au=['id'=>(int)$p['uid'],'username'=>(string)$p['username'],'avatar'=>(string)($p['avatar']??''),
          'is_admin'=>$p['is_admin']??0,'is_official'=>$p['is_official']??0,'is_operator'=>$p['is_operator']??0];
@@ -70,6 +79,7 @@ $page_title='主页'; include __DIR__.'/header.php';
 <div class="card board-jump">
   <div class="card-h"><?=ico('grid',16)?>选择版块进入浏览<span class="r">也可以用顶部「版块」菜单</span></div>
   <div class="bj-in">
+    <a class="chip" href="board.php"><?=ico('file',13)?>全部帖子</a>
     <?php foreach($boards as $b): ?>
     <a class="chip" href="board.php?b=<?=urlencode($b)?>"><?=ico('grid',13)?><?=e($b)?></a>
     <?php endforeach; ?>
@@ -91,14 +101,24 @@ $page_title='主页'; include __DIR__.'/header.php';
     <?php if(!$hot): ?><div class="empty">暂无内容</div><?php endif; ?>
   </div>
   <div class="card">
-    <div class="card-h"><?=ico('users',16)?>作者榜<span class="r">按发帖数</span></div>
-    <?php foreach($hotUsers as $i=>$hu): ?>
+    <div class="card-h"><?=ico('users',16)?>作者榜
+      <span class="r rank-switch">
+        <a href="index.php?usort=posts#hot" class="<?=$usort==='posts'?'on':''?>">发帖</a>
+        <a href="index.php?usort=likes#hot" class="<?=$usort==='likes'?'on':''?>">点赞</a>
+        <a href="index.php?usort=comments#hot" class="<?=$usort==='comments'?'on':''?>">评论</a>
+      </span>
+    </div>
+    <?php foreach($hotUsers as $i=>$hu):
+      if($usort==='likes') $uSub='获赞 '.$hu['lc'].' 次';
+      elseif($usort==='comments') $uSub='被评论 '.$hu['cc'].' 条';
+      else $uSub='发帖 '.$hu['pc'].' 篇';
+    ?>
     <a class="hot-item" href="user.php?uid=<?=$hu['id']?>">
       <span class="hot-rank"><?=$i+1?></span>
       <?=avatar_html($hu,30)?>
       <span class="hot-main">
         <span class="hot-title"><?=e($hu['username'])?> <?=role_badges($hu)?></span>
-        <span class="hot-sub" style="display:block">发帖 <?=$hu['pc']?> 篇</span>
+        <span class="hot-sub" style="display:block"><?=e($uSub)?></span>
       </span>
     </a>
     <?php endforeach; ?>

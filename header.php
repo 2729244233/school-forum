@@ -11,7 +11,7 @@ $ogImg   = (string)($og['image'] ?? '');
 $ogUrl   = (string)($og['url'] ?? (base_url().'/'.$cur));
 $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
 ?>
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title><?=e(SITE_NAME)?><?php if(!empty($page_title)) echo ' - '.e($page_title); ?></title>
 <meta property="og:title" content="<?=e($ogTitle!==''?$ogTitle:(!empty($page_title)?$page_title.' - '.SITE_NAME:SITE_NAME))?>">
 <meta property="og:description" content="<?=e(mb_substr(preg_replace('/\s+/u',' ',trim($ogDesc)),0,60))?>">
@@ -19,7 +19,7 @@ $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
 <meta property="og:url" content="<?=e($ogUrl)?>">
 <?php if($ogImg!==''): ?><meta property="og:image" content="<?=e($ogImg)?>"><?php endif; ?>
 <link rel="icon" href="school.png" type="image/png"><link rel="stylesheet" href="assets/style.css?v=<?=@filemtime(__DIR__.'/assets/style.css')?>"></head>
-<body>
+<body<?php $bc=(string)($bodyClass ?? ''); echo $bc!==''?' class="'.e($bc).'"':''; ?>>
 <!-- v1.3.0 加载动画：资源就绪后淡出；noscript 环境直接隐藏直显内容 -->
 <div class="app-loader" id="appLoader"><span class="ld-spin"></span><span class="ld-t"><?=e(SITE_NAME)?> 加载中…</span></div>
 <noscript><style>#appLoader{display:none!important}</style></noscript>
@@ -28,8 +28,8 @@ $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
 <nav class="nav">
   <a href="index.php" class="<?=$cur=='index.php'?'on':''?>"><?=ico('home',15)?>主页</a>
   <div class="nav-drop" id="navBoard">
-    <button class="nav-drop-btn <?=$cur=='board.php'?'on':''?>" type="button"><?=ico('grid',15)?>版块<i>▾</i></button>
-    <div class="nav-drop-panel"><?php foreach(boards_all() as $nbd): ?><a href="board.php?b=<?=urlencode($nbd)?>" class="<?=$curBoard===$nbd?'on':''?>"><?=e($nbd)?></a><?php endforeach; ?></div>
+    <button class="nav-drop-btn <?=$cur=='board.php'?'on':''?>" type="button"><?=ico('grid',15)?><?=$curBoard!==''?e($curBoard):'版块'?><i>▾</i></button>
+    <div class="nav-drop-panel"><a href="board.php" class="<?=$cur==='board.php'&&$curBoard==='全部帖子'?'on':''?>">全部帖子</a><?php foreach(boards_all() as $nbd): ?><a href="board.php?b=<?=urlencode($nbd)?>" class="<?=$curBoard===$nbd?'on':''?>"><?=e($nbd)?></a><?php endforeach; ?></div>
   </div>
   <a href="index.php#hot"><?=ico('fire',15)?>热榜</a>
   <a href="user.php" class="<?=$cur=='user.php'?'on':''?>"><?=ico('user',15)?>个人中心</a>
@@ -57,7 +57,7 @@ $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
   <a class="btn small" href="register.php">注册</a>
 <?php endif; ?></div>
 </div></div><div class="wrap">
-<script>window.LOGGED_IN = <?=$u?1:0?>;window.UPLOAD_MAX_MB=<?=UPLOAD_MAX_MB?>;window.FORUM_ON=<?=ENABLE_FORUM?1:0?>;window.UPLOAD_ON=<?=ENABLE_UPLOAD?1:0?>;</script>
+<script>window.LOGGED_IN = <?=$u?1:0?>;window.UPLOAD_MAX_MB=<?=UPLOAD_MAX_MB?>;window.UPLOAD_VIDEO_MB=<?=UPLOAD_VIDEO_MB?>;window.FORUM_ON=<?=ENABLE_FORUM?1:0?>;window.UPLOAD_ON=<?=ENABLE_UPLOAD?1:0?>;</script>
 <?php if($flashOk!==''): ?><div class="success" style="margin-top:14px"><?=ico('check',15)?><?=e($flashOk)?></div><?php endif; ?>
 
 <?php if($u && is_social_local((string)$u['email'])): $autoBind = empty($_SESSION['bind_asked']); ?>
@@ -123,12 +123,14 @@ $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
         style="transition:font-size .15s;font-size:16px;line-height:1.8"></textarea>
       <?php if(ENABLE_UPLOAD): ?>
       <div class="up-row">
-        <input type="file" id="postImg" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none">
-        <button type="button" class="btn ghost small" id="postImgBtn"><?=ico('img',14)?>插入图片</button>
+        <input type="file" id="postImg" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime,video/x-msvideo" style="display:none">
+        <button type="button" class="btn ghost small" id="postImgBtn"><?=ico('img',14)?>插入图片 / 视频</button>
         <span class="up-bar" id="upBar"><i id="upBarIn"></i></span>
-        <span class="up-tip" id="upTip">≤ <?=UPLOAD_MAX_MB?>MB · 自动上传图床并插入正文</span>
+        <span class="up-tip" id="upTip">图片 ≤ <?=UPLOAD_MAX_MB?>MB · 视频 ≤ <?=UPLOAD_VIDEO_MB?>MB（超 10 秒自动裁切）</span>
       </div>
       <div class="up-prev" id="upPrev"></div>
+      <!-- v1.4.2：正文只插入 [[IMGn]] 占位符，真实外链按顺序存于此处，由 new.php 服务端还原 -->
+      <input type="hidden" name="imgs" id="upList" value="">
       <?php endif; ?>
       <?=geetest_widget()?>
       <button class="btn block" type="submit"><?=ico('send',15)?>发布</button>
@@ -170,12 +172,14 @@ $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
     window.openPost = open;
     window.closePost = closeM;
   }
-  /* v1.3.0 发帖弹窗图片上传：XHR 带进度条，成功后把图床 URL 插入正文 */
+  /* v1.4.2 发帖弹窗上传：图片 / 视频，XHR 带进度条；正文只插入 [[IMGn]] 占位符 + 缩略图，不展示外链 */
   var imgBtn=document.getElementById('postImgBtn');
   if(imgBtn){
     var imgIn=document.getElementById('postImg'), bar=document.getElementById('upBar'),
         barIn=document.getElementById('upBarIn'), tip=document.getElementById('upTip'),
-        prev=document.getElementById('upPrev');
+        prev=document.getElementById('upPrev'), list=document.getElementById('upList');
+    var urls=[];
+    function isVid(f){ return /^video\//.test(f.type||'')||/\.(mp4|webm|mov|avi)$/i.test(f.name||''); }
     function showPrev(url){
       if(!prev||!url) return;
       var im=document.createElement('img');
@@ -189,7 +193,8 @@ $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
     });
     imgIn.addEventListener('change',function(){
       var f=imgIn.files[0]; if(!f) return;
-      if(f.size>window.UPLOAD_MAX_MB*1048576){ tip.textContent='图片不能超过 '+window.UPLOAD_MAX_MB+'MB'; imgIn.value=''; return; }
+      var vid=isVid(f), max=vid?window.UPLOAD_VIDEO_MB:window.UPLOAD_MAX_MB, unit=vid?'视频':'图片';
+      if(f.size>max*1048576){ tip.textContent=unit+'不能超过 '+max+'MB'; imgIn.value=''; return; }
       var fd=new FormData(); fd.append('file',f); fd.append('csrf','<?=csrf_token()?>');
       bar.style.display='inline-block'; barIn.style.width='0%';
       var xhr=new XMLHttpRequest();
@@ -198,8 +203,16 @@ $flashOk = $_SESSION['flash_ok'] ?? ''; unset($_SESSION['flash_ok']);
         bar.style.display='none'; imgIn.value='';
         try{
           var j=JSON.parse(xhr.responseText);
-          if(j.ok){ ta.value+=(ta.value?'\n':'')+j.url; tip.textContent='图片已插入正文，发布后展示'; showPrev(j.url); }
-          else tip.textContent=j.msg||'上传失败';
+          if(j.ok&&j.url){
+            urls.push(j.url);
+            if(list) list.value=urls.join('\n');
+            if(ta){
+              var ph='[[IMG'+urls.length+']]';
+              ta.value += (ta.value? (ta.value.slice(-1)==='\n'?'':'\n') : '') + ph;
+            }
+            tip.textContent=(vid?'视频':'图片')+'已插入正文，发布后展示';
+            showPrev(j.url);
+          } else tip.textContent=j.msg||'上传失败';
         }catch(ex){ tip.textContent='上传失败'; }
       };
       xhr.onerror=function(){ bar.style.display='none'; imgIn.value=''; tip.textContent='上传失败，请重试'; };

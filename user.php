@@ -110,7 +110,7 @@ $page_title=$isSelf?'个人中心':$pu['username'].' 的主页'; include 'header
       <?php endif; ?>
     </td></tr>
     <tr><td>昵称</td><td><?=e($pu['username'])?></td></tr>
-    <?php foreach(suyan_types() as $t=>$p): $bound=array_key_exists($t,$socials); ?>
+    <?php foreach(suyan_types() as $t=>$p): $bound=array_key_exists($t,$socials); if(!$bound && !suyan_channel_on($t)) continue; // v1.4.2：已关闭且未绑定的通道不展示 ?>
     <tr><td><span style="color:<?=$p['color']?>;display:inline-flex;vertical-align:-3px"><?=ico($p['icon'],15)?></span> <?=$p['name']?></td><td>
       <?php if($bound):?>
         <span class="tagx ok">已绑定</span> <?=e($socials[$t]?:$p['name'].'用户')?>

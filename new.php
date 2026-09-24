@@ -5,6 +5,15 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
   if(!check_csrf()) throw new Exception('表单过期');
   $r=geetest_verify(); if($r!==true) throw new Exception($r);
   $board=trim($_POST['board']??'综合交流'); $title=trim($_POST['title']??''); $content=trim($_POST['content']??'');
+  // v1.4.2：还原正文中的 [[IMGn]] 占位符为真实图床外链（顺序与隐藏域 imgs 一致）
+  $imgs=array_values(array_filter(array_map('trim',explode("\n",(string)($_POST['imgs']??''))),function($v){ return $v!==''; }));
+  if($imgs){
+    $content=preg_replace_callback('/\[\[IMG(\d+)\]\]/',function($m) use($imgs){
+      $i=((int)$m[1])-1;
+      return isset($imgs[$i])?$imgs[$i]:'';
+    },$content);
+    $content=trim($content);
+  }
   // v1.3.0：版块白名单改为读配置，防注入自定义版块
   if(!in_array($board,boards_all(),true)) $board=boards_all()[0];
   $font_family=trim($_POST['font_family']??''); $font_size=trim($_POST['font_size']??'');
